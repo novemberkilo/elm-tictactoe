@@ -81,9 +81,11 @@ addMove move state =
     let newMoves = move :: (moves state)
         player = snd move
     in
-        if  | playerWon player newMoves -> FinishedGame (Winner player) newMoves
-            | length newMoves == 9 -> FinishedGame Draw newMoves
-            | otherwise -> NotFinishedGame (other player) newMoves
+      if  playerWon player newMoves then
+          FinishedGame (Winner player) newMoves
+        else if length newMoves == 9 then
+               FinishedGame Draw newMoves
+        else NotFinishedGame (other player) newMoves
 
 
 makeComputerMove : GameState -> GameState
@@ -111,7 +113,7 @@ makeHumanAndComputerMove : Field -> GameState -> GameState
 makeHumanAndComputerMove field state =
     case state of
         FinishedGame _ _ -> state
-        NotFinishedGame player moves -> 
+        NotFinishedGame player moves ->
             if isFieldEmpty moves field
                 then addMove (field,player) state |> makeComputerMove
                 else state
