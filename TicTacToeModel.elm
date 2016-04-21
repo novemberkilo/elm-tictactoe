@@ -1,7 +1,7 @@
 module TicTacToeModel where
 
-import List exposing ((::), all, drop, filter, head, isEmpty, length, map, concatMap, sortWith, maximum)
-import Maybe exposing (withDefault)
+import List exposing ((::), all, drop, filter, head, isEmpty, length, map, concatMap, sortWith, maximum, reverse, take)
+
 import Debug
 
 type Player = O | X
@@ -9,9 +9,7 @@ type Player = O | X
 
 type Result = Draw | Winner Player
 
-
 type alias Field = { col: Int, row: Int }
-
 
 type alias Move = (Field,Player)
 type alias ScoredMove = (Move, Int)
@@ -30,7 +28,6 @@ other player =
         X -> O
         O -> X
 
-
 moves : GameState -> Moves
 moves state =
     case state of
@@ -39,6 +36,7 @@ moves state =
 
 scoreWin : Result -> Int -> Int
 scoreWin result depth =
+  -- this version has the computer playing O
   case result of
     Draw -> 0
     Winner X -> depth - 10
@@ -51,6 +49,10 @@ initialState = NotFinishedGame X []
 isFieldEmpty : Moves -> Field -> Bool
 isFieldEmpty moves field = all (\move -> not (fst move == field)) moves
 
+unsafeExtract : Maybe a -> a
+unsafeExtract x = case x of
+  Just y -> y
+  otherwise -> Debug.crash "unsafeExtract a Nothing"
 
 subsequences : List a -> List (List a)
 subsequences lst =
@@ -121,10 +123,18 @@ getAvailableGameStates state = case state of
     map (\field -> addMove (field, player) state) newMoves
 
 
-miniMax : GameState -> Int -> List Int
+miniMax : GameState -> Int -> Int
 miniMax state depth = case state of
-    FinishedGame result _ -> [scoreWin result depth]
-    NotFinishedGame player moves -> concatMap (\state -> miniMax state (depth+1)) (getAvailableGameStates state)
+  FinishedGame result _ -> scoreWin result depth
+  NotFinishedGame player moves ->
+  let minimax = map (\st -> miniMax st (depth+1)) (getAvailableGameStates state)
+              |> List.sort
+  in
+    -- the minmax part
+    -- Note that the computer is O
+    case player of
+      X -> head minimax |> unsafeExtract -- X is the opponent so take min
+      O -> reverse minimax |> head |> unsafeExtract -- take max
 
 
 compareScoredStates : (GameState, Int) -> (GameState, Int) -> Order
@@ -135,9 +145,10 @@ nextMove : List (GameState, Int) -> Maybe Move
 nextMove scoredStates = case scoredStates of
   [] -> Nothing
   otherwise -> let topScoredState = scoredStates |> sortWith compareScoredStates |> head
-                   (topScoringState, topScore) = withDefault ((FinishedGame (Winner X) []),0) topScoredState
+                   (topScoringState, topScore) = unsafeExtract topScoredState
                in
                  topScoringState |> moves |> head
+
 
 makeComputerMove : GameState -> GameState
 makeComputerMove state = case state of
@@ -145,9 +156,8 @@ makeComputerMove state = case state of
     NotFinishedGame player moves ->
     let
       availableMovesScored = getAvailableGameStates state
-                           |> map (\st -> (st, withDefault 0 (List.minimum (miniMax st 0))))
-      -- TODO: Fix silly withDefault below
-      bestMove = withDefault ({col=2,row=1}, player) (nextMove (Debug.log "available moves scored" availableMovesScored))
+                           |> map (\st -> (st, miniMax st 0))
+      bestMove = unsafeExtract (nextMove availableMovesScored)
     in
       addMove bestMove state
 
